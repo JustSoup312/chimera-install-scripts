@@ -73,6 +73,7 @@ In any case, the root directory must exist and be writable.
 Options:
   -l       Perform a local installation.
   -L PATH  Override the local installation source root.
+  -o       Perform an ostree installation.
   -a PATH  Use a different apk binary.
   -i       Run apk in interactive mode.
   -I       Ignore system repositories.
@@ -87,6 +88,7 @@ EOF
 
 INSTALL_LOCAL=0
 INSTALL_LOCAL_PATH="/run/live/rootfs/filesystem.squashfs"
+INSTALL_OSTREE=0
 INSTALL_APK="apk"
 INSTALL_FORCE=0
 INSTALL_IGNORE_REPOS=0
@@ -98,10 +100,11 @@ if [ "$(id -u)" != "0" ]; then
     die "Must run this as root."
 fi
 
-while getopts "lL:a:iIr:k:fuh" opt; do
+while getopts "lL:oa:iIr:k:fuh" opt; do
     case "$opt" in
         l) INSTALL_LOCAL=1 ;;
         L) INSTALL_LOCAL_PATH="$OPTARG" ;;
+        o) INSTALL_OSTREE=1 ;;
         a) INSTALL_APK="$OPTARG" ;;
         i) INSTALL_APK_ARGS="$INSTALL_APK_ARGS --interactive" ;;
         I) INSTALL_IGNORE_REPOS=1 ;;
@@ -137,7 +140,7 @@ fi
 ROOT_DIR="$1"
 shift
 
-if [ $# -eq 0 -a "$INSTALL_LOCAL" -eq 0 ]; then
+if [ $# -eq 0 -a "$INSTALL_LOCAL" -eq 0 ];  then
     # set a default for network installations
     set -- "base-full"
 fi
@@ -203,6 +206,13 @@ if [ "$INSTALL_LOCAL" -eq 1 ]; then
     msg "Copying system to ${ROOT_DIR}..."
     # copy over the source system as closely as possible
     tar -cf - -C "$INSTALL_LOCAL_PATH" . | tar -xpf - -C "$ROOT_DIR"
+elif [ "$INSTALL_OSTREE" -eq 1 ]; then
+    make_reposf
+    msg "Installing ostree-enabled system at ${ROOT_DIR}..."
+    # install chimerautils with base-ostree-files instead of base-files
+    "$INSTALL_APK" --root "$ROOT_DIR" --keys-dir "$INSTALL_KEYS_DIR" \
+        --repositories-file "$REPOSF" $INSTALL_APK_ARGS \
+        --initdb add base-ostree-files chimerautils
 else
     make_reposf
     msg "Installing minimal system at ${ROOT_DIR}..."
